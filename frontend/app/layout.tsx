@@ -35,7 +35,6 @@ export default function RootLayout({
 
             <nav className="flex flex-wrap gap-2 text-sm">
               {[
-                { name: "홈", href: "/" },
                 { name: "추천종목", href: "/recommendations" },
                 { name: "시장분석", href: "/market" },
                 { name: "알림", href: "/alerts" },
