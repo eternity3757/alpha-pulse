@@ -15,14 +15,6 @@ type Holding = {
   comment: string;
 };
 
-const mockPriceMap: Record<string, string> = {
-  "005930": "75,000", // 삼성전자
-  "030530": "38,000", // 원익홀딩스
-  "007660": "48,500", // 이수페타시스
-  "078600": "182,800", // 대주전자재료
-  "298040": "420,000", // 효성중공업
-};
-
 const defaultHoldings: Holding[] = [
   {
     name: "원익홀딩스",
@@ -71,10 +63,6 @@ function calculateProfit(avgPrice: string, currentPrice: string) {
   };
 }
 
-function getMockCurrentPrice(code: string) {
-  return mockPriceMap[code] || "50,000";
-}
-
 function getAutoStatus(profit: string) {
   const rate = Number(profit.replace("%", ""));
 
@@ -119,6 +107,7 @@ export default function PortfolioPage() {
   const [avgPrice, setAvgPrice] = useState("");
   const [quantity, setQuantity] = useState("");
   const [currentPrice, setCurrentPrice] = useState("");
+  const [isLoadingPrice, setIsLoadingPrice] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem("holdings");
@@ -132,26 +121,52 @@ export default function PortfolioPage() {
     localStorage.setItem("holdings", JSON.stringify(holdings));
   }, [holdings]);
 
-  function fetchCurrentPrice() {
-    if (!code) return;
+  async function fetchCurrentPrice() {
+    if (!code) {
+      alert("종목코드를 입력해 주세요.");
+      return;
+    }
 
-    const price = getMockCurrentPrice(code);
-    setCurrentPrice(price);
+    try {
+      setIsLoadingPrice(true);
+
+      const res = await fetch(`/api/price?code=${code}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || "현재가를 불러오지 못했습니다.");
+        return;
+      }
+
+      setCurrentPrice(data.price);
+    } catch {
+      alert("현재가 조회 중 오류가 발생했습니다.");
+    } finally {
+      setIsLoadingPrice(false);
+    }
   }
 
   function addHolding() {
-    if (!name || !code || !avgPrice || !quantity) return;
+    if (!name || !code || !avgPrice || !quantity) {
+      alert("종목명, 종목코드, 평단, 수량을 모두 입력해 주세요.");
+      return;
+    }
 
-    const price = currentPrice || getMockCurrentPrice(code);
-    const calculated = calculateProfit(avgPrice, price);
+    if (!currentPrice) {
+      alert("현재가를 먼저 불러와 주세요.");
+      return;
+    }
+
+    const formattedAvgPrice = formatNumber(avgPrice);
+    const calculated = calculateProfit(formattedAvgPrice, currentPrice);
     const status = getAutoStatus(calculated.profit);
 
     const newHolding: Holding = {
       name,
       code,
-      avgPrice: formatNumber(avgPrice),
+      avgPrice: formattedAvgPrice,
       quantity,
-      currentPrice: price,
+      currentPrice,
       profit: calculated.profit,
       isProfit: calculated.isProfit,
       score: 75,
@@ -183,7 +198,7 @@ export default function PortfolioPage() {
           <div>
             <h1 className="mb-2 text-4xl font-bold">📒 매매일지</h1>
             <p className="text-zinc-400">
-              종목코드 기반으로 현재가를 불러오고 수익률을 자동 계산합니다.
+              종목코드로 현재가를 조회하고 수익률을 자동 계산합니다.
             </p>
           </div>
 
@@ -229,9 +244,10 @@ export default function PortfolioPage() {
 
             <button
               onClick={fetchCurrentPrice}
-              className="rounded-xl border border-green-700 px-4 py-3 font-bold text-green-300 hover:bg-green-950"
+              disabled={isLoadingPrice}
+              className="rounded-xl border border-green-700 px-4 py-3 font-bold text-green-300 hover:bg-green-950 disabled:opacity-50"
             >
-              현재가 불러오기
+              {isLoadingPrice ? "조회 중" : "현재가 조회"}
             </button>
 
             <button
@@ -243,14 +259,14 @@ export default function PortfolioPage() {
           </div>
 
           <div className="mt-4 rounded-xl bg-black/40 p-4">
-            <p className="text-sm text-zinc-500">불러온 현재가</p>
+            <p className="text-sm text-zinc-500">조회된 현재가</p>
             <p className="mt-1 text-2xl font-bold text-green-300">
-              {currentPrice ? `${currentPrice}원` : "아직 불러오지 않음"}
+              {currentPrice ? `${currentPrice}원` : "아직 조회되지 않음"}
             </p>
           </div>
 
           <p className="mt-3 text-sm text-zinc-500">
-            현재는 테스트용 더미 가격입니다. 다음 단계에서 실제 API로 교체합니다.
+            현재는 Yahoo Finance 기반 조회입니다. 국내 종목은 지연 시세일 수 있습니다.
           </p>
         </section>
 
@@ -267,7 +283,7 @@ export default function PortfolioPage() {
 
           <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
             <p className="text-sm text-zinc-500">현재가 연동</p>
-            <h2 className="mt-2 text-3xl font-bold text-yellow-300">테스트 모드</h2>
+            <h2 className="mt-2 text-3xl font-bold text-green-400">API 조회</h2>
           </div>
         </section>
 
