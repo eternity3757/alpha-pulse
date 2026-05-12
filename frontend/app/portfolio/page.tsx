@@ -15,6 +15,14 @@ type Holding = {
   comment: string;
 };
 
+const mockPriceMap: Record<string, string> = {
+  "005930": "75,000", // 삼성전자
+  "030530": "38,000", // 원익홀딩스
+  "007660": "48,500", // 이수페타시스
+  "078600": "182,800", // 대주전자재료
+  "298040": "420,000", // 효성중공업
+};
+
 const defaultHoldings: Holding[] = [
   {
     name: "원익홀딩스",
@@ -42,6 +50,12 @@ const defaultHoldings: Holding[] = [
   },
 ];
 
+function formatNumber(value: string) {
+  const number = Number(value.replaceAll(",", ""));
+  if (!number) return "";
+  return number.toLocaleString("ko-KR");
+}
+
 function calculateProfit(avgPrice: string, currentPrice: string) {
   const avg = Number(avgPrice.replaceAll(",", ""));
   const current = Number(currentPrice.replaceAll(",", ""));
@@ -55,6 +69,46 @@ function calculateProfit(avgPrice: string, currentPrice: string) {
     profit: `${sign}${rate.toFixed(1)}%`,
     isProfit: rate >= 0,
   };
+}
+
+function getMockCurrentPrice(code: string) {
+  return mockPriceMap[code] || "50,000";
+}
+
+function getAutoStatus(profit: string) {
+  const rate = Number(profit.replace("%", ""));
+
+  if (rate >= 80) return "고수익 구간";
+  if (rate >= 30) return "추세 강화";
+  if (rate >= 10) return "추세 유지";
+  if (rate <= -10) return "지지선 주의";
+  if (rate < 0) return "약세 구간";
+
+  return "분석 대기";
+}
+
+function getAutoComment(status: string) {
+  if (status === "고수익 구간") {
+    return "큰 수익 이후 변동성 확대 가능성, 분할 매도 전략 점검";
+  }
+
+  if (status === "추세 강화") {
+    return "수익 구간 진입, 추세 유지 여부 확인";
+  }
+
+  if (status === "추세 유지") {
+    return "상승 흐름 유지 중, 시장 급변 시 알림 확인";
+  }
+
+  if (status === "지지선 주의") {
+    return "손실 확대 구간, 지지선 이탈 여부 확인 필요";
+  }
+
+  if (status === "약세 구간") {
+    return "단기 약세 흐름, 추가 매수보다는 관망 우선";
+  }
+
+  return "실시간 데이터 연결 후 AI 분석 예정";
 }
 
 export default function PortfolioPage() {
@@ -78,22 +132,31 @@ export default function PortfolioPage() {
     localStorage.setItem("holdings", JSON.stringify(holdings));
   }, [holdings]);
 
-  function addHolding() {
-    if (!name || !code || !avgPrice || !quantity || !currentPrice) return;
+  function fetchCurrentPrice() {
+    if (!code) return;
 
-    const calculated = calculateProfit(avgPrice, currentPrice);
+    const price = getMockCurrentPrice(code);
+    setCurrentPrice(price);
+  }
+
+  function addHolding() {
+    if (!name || !code || !avgPrice || !quantity) return;
+
+    const price = currentPrice || getMockCurrentPrice(code);
+    const calculated = calculateProfit(avgPrice, price);
+    const status = getAutoStatus(calculated.profit);
 
     const newHolding: Holding = {
       name,
       code,
-      avgPrice,
+      avgPrice: formatNumber(avgPrice),
       quantity,
-      currentPrice,
+      currentPrice: price,
       profit: calculated.profit,
       isProfit: calculated.isProfit,
       score: 75,
-      status: "분석 대기",
-      comment: "종목코드 기반 실시간 현재가 연결 예정",
+      status,
+      comment: getAutoComment(status),
     };
 
     setHoldings([newHolding, ...holdings]);
@@ -120,7 +183,7 @@ export default function PortfolioPage() {
           <div>
             <h1 className="mb-2 text-4xl font-bold">📒 매매일지</h1>
             <p className="text-zinc-400">
-              보유 종목을 등록하고 수익률, 상태, AI 분석을 관리합니다.
+              종목코드 기반으로 현재가를 불러오고 수익률을 자동 계산합니다.
             </p>
           </div>
 
@@ -164,12 +227,12 @@ export default function PortfolioPage() {
               className="rounded-xl border border-zinc-700 bg-black px-4 py-3 text-white outline-none"
             />
 
-            <input
-              value={currentPrice}
-              onChange={(e) => setCurrentPrice(e.target.value)}
-              placeholder="현재가"
-              className="rounded-xl border border-zinc-700 bg-black px-4 py-3 text-white outline-none"
-            />
+            <button
+              onClick={fetchCurrentPrice}
+              className="rounded-xl border border-green-700 px-4 py-3 font-bold text-green-300 hover:bg-green-950"
+            >
+              현재가 불러오기
+            </button>
 
             <button
               onClick={addHolding}
@@ -179,8 +242,15 @@ export default function PortfolioPage() {
             </button>
           </div>
 
+          <div className="mt-4 rounded-xl bg-black/40 p-4">
+            <p className="text-sm text-zinc-500">불러온 현재가</p>
+            <p className="mt-1 text-2xl font-bold text-green-300">
+              {currentPrice ? `${currentPrice}원` : "아직 불러오지 않음"}
+            </p>
+          </div>
+
           <p className="mt-3 text-sm text-zinc-500">
-            입력한 종목은 브라우저에 자동 저장됩니다. 새로고침해도 유지됩니다.
+            현재는 테스트용 더미 가격입니다. 다음 단계에서 실제 API로 교체합니다.
           </p>
         </section>
 
@@ -197,7 +267,7 @@ export default function PortfolioPage() {
 
           <div className="rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
             <p className="text-sm text-zinc-500">현재가 연동</p>
-            <h2 className="mt-2 text-3xl font-bold text-yellow-300">준비 중</h2>
+            <h2 className="mt-2 text-3xl font-bold text-yellow-300">테스트 모드</h2>
           </div>
         </section>
 
