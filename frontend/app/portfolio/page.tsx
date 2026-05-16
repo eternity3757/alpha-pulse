@@ -130,7 +130,7 @@ export default function PortfolioPage() {
     try {
       setIsLoadingPrice(true);
 
-      const res = await fetch(`/api/price?code=${code}`);
+    const res = await fetch(`/api/stockcode=${code}`);
       const data = await res.json();
 
       if (!res.ok) {
